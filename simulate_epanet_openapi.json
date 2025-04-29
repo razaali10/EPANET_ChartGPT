@@ -1,0 +1,57 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "EPANET Simulation API",
+    "version": "1.0.0",
+    "description": "Upload a .inp file to run an EPANET simulation and return the report."
+  },
+  "paths": {
+    "/simulate": {
+      "post": {
+        "summary": "Simulate EPANET model",
+        "description": "Uploads an EPANET .inp file and returns the simulation report.",
+        "operationId": "simulate_epanet",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "inp_file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "EPANET .inp file"
+                  }
+                },
+                "required": ["inp_file"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Simulation report returned successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "report": {
+                      "type": "string",
+                      "description": "Text output from EPANET simulation (.rpt contents)"
+                    }
+                  },
+                  "required": ["report"]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Simulation or server error"
+          }
+        }
+      }
+    }
+  }
+}
