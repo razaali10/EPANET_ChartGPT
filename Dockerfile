@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
 RUN git clone https://github.com/OpenWaterAnalytics/EPANET && \
     cd EPANET && mkdir build && cd build && \
     cmake .. && make && \
-    cp build/bin/runepanet /usr/local/bin/epanet2
+    cp runepanet /usr/local/bin/epanet2
 
 # Set working directory
 WORKDIR /app
@@ -20,8 +20,9 @@ COPY . /app
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port 5050
+# Expose FastAPI port
 EXPOSE 5050
 
 # Start the FastAPI server
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5050"]
+
