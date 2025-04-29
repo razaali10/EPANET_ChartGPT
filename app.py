@@ -2,6 +2,7 @@ from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 import subprocess
 import os
+import tempfile
 
 app = FastAPI()
 
@@ -12,15 +13,31 @@ def read_root():
 @app.post("/simulate")
 async def simulate(inp_file: UploadFile = File(...)):
     try:
-        filename = inp_file.filename
-        file_location = f"/tmp/{filename}"
-        with open(file_location, "wb") as f:
-            f.write(await inp_file.read())
+        # Save uploaded file to temp location
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".inp", dir="/tmp") as temp_inp:
+            inp_content = await inp_file.read()
+            temp_inp.write(inp_content)
+            inp_path = temp_inp.name
 
-        result = subprocess.check_output(["epanet2", file_location], stderr=subprocess.STDOUT).decode()
-        return JSONResponse(content={"report": result})
+        # Prepare a temporary file for output report
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".rpt", dir="/tmp") as temp_rpt:
+            rpt_path = temp_rpt.name
+
+        # Run EPANET simulation (pass both input and output paths)
+        result = subprocess.check_output(
+            ["epanet2", inp_path, rpt_path],
+            stderr=subprocess.STDOUT
+        ).decode()
+
+        # Read the generated report file
+        with open(rpt_path, "r") as f:
+            report_content = f.read()
+
+        # Return the report content
+        return JSONResponse(content={"report": report_content})
+
     except subprocess.CalledProcessError as e:
-        return JSONResponse(content={"error": "EPANET simulation failed."}, status_code=500)
+        return JSONResponse(content={"error": f"EPANET simulation failed: {e.output.decode()}"}, status_code=500)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
-       
+
