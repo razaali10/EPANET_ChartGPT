@@ -1,43 +1,39 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
 import subprocess
-import os
 import tempfile
 
 app = FastAPI()
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to EPANET Simulation API"}
+    return {"message": "EPANET Simulation API is running"}
 
 @app.post("/simulate")
 async def simulate(inp_file: UploadFile = File(...)):
     try:
-        # Save uploaded file to temp location
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".inp", dir="/tmp") as temp_inp:
-            inp_content = await inp_file.read()
-            temp_inp.write(inp_content)
+        # Save uploaded .inp file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".inp") as temp_inp:
+            temp_inp.write(await inp_file.read())
             inp_path = temp_inp.name
 
-        # Prepare a temporary file for output report
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".rpt", dir="/tmp") as temp_rpt:
+        # Create temp file for the report
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".rpt") as temp_rpt:
             rpt_path = temp_rpt.name
 
-        # Run EPANET simulation (pass both input and output paths)
-        result = subprocess.check_output(
-            ["epanet2", inp_path, rpt_path],
-            stderr=subprocess.STDOUT
-        ).decode()
+        # Run EPANET CLI (epanet2)
+        subprocess.run(["epanet2", inp_path, rpt_path], check=True)
 
-        # Read the generated report file
-        with open(rpt_path, "r") as f:
-            report_content = f.read()
+        # Read the output report
+        with open(rpt_path, "r") as rpt_file:
+            report = rpt_file.read()
 
-        # Return the report content
-        return JSONResponse(content={"report": report_content})
+        return JSONResponse(content={"report": report})
 
-    except subprocess.CalledProcessError as e:
-        return JSONResponse(content={"error": f"EPANET simulation failed: {e.output.decode()}"}, status_code=500)
+    except subprocess.CalledProcessError:
+        raise HTTPException(status_code=500, detail="EPANET simulation failed.")
     except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        raise HTTPException(status_code=500, detail=str(e))
 
+
+     
