@@ -50,4 +50,6 @@ paths:
                 properties:
                   error:
                     type: string
-                    description: Error message
+                    description: Error message returned if the simulation fails
+
+   
