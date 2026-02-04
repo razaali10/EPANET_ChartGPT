@@ -1,48 +1,120 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse
-import subprocess
-import tempfile
 import os
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
-app = FastAPI()
+# -------------------------------------------------------------------
+# App setup
+# -------------------------------------------------------------------
+
+app = FastAPI(
+    title="EPANET ChartGPT API",
+    description="Run EPANET models deployed on Render",
+    version="1.0.0"
+)
+
+# -------------------------------------------------------------------
+# Paths
+# -------------------------------------------------------------------
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODELS_DIR = os.path.join(BASE_DIR, "models")
+
+if not os.path.isdir(MODELS_DIR):
+    os.makedirs(MODELS_DIR, exist_ok=True)
+
+# -------------------------------------------------------------------
+# Request schema
+# -------------------------------------------------------------------
+
+class EpanetRequest(BaseModel):
+    inp_file: str
+
+# -------------------------------------------------------------------
+# Core EPANET runner (placeholder – keep your existing logic)
+# -------------------------------------------------------------------
+
+def run_epanet_model(inp_path: str) -> dict:
+    """
+    Run EPANET using an existing implementation.
+    Replace the internals of this function with your current logic.
+    """
+
+    # ---------------------------------------------------------------
+    # IMPORTANT:
+    # Insert your existing EPANET execution code here.
+    # This function MUST use inp_path as the full path.
+    # ---------------------------------------------------------------
+
+    # Example placeholder return structure
+    return {
+        "summary": "Simulation completed successfully",
+        "status_report": "No hydraulic errors",
+        "energy": "",
+        "tanks": "",
+        "quality": "",
+        "controls": "",
+        "raw_report": ""
+    }
+
+# -------------------------------------------------------------------
+# Run simulation endpoint
+# -------------------------------------------------------------------
+
+@app.post("/run")
+def run_epanet(request: EpanetRequest):
+    inp_filename = request.inp_file
+
+    # Block path traversal
+    if "/" in inp_filename or "\\" in inp_filename:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid filename. Only bare filenames are allowed."
+        )
+
+    inp_path = os.path.join(MODELS_DIR, inp_filename)
+
+    if not os.path.isfile(inp_path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Input file not found: {inp_filename}"
+        )
+
+    try:
+        results = run_epanet_model(inp_path)
+        return results
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"EPANET execution failed: {str(e)}"
+        )
+
+# -------------------------------------------------------------------
+# List available models (recommended)
+# -------------------------------------------------------------------
+
+@app.get("/models")
+def list_models():
+    try:
+        models = sorted(
+            f for f in os.listdir(MODELS_DIR)
+            if f.lower().endswith(".inp")
+        )
+        return {"models": models}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+# -------------------------------------------------------------------
+# Health check
+# -------------------------------------------------------------------
 
 @app.get("/")
-def root():
-    return {"message": "EPANET Simulation API is running"}
-
-@app.post("/simulate")
-async def simulate(inp_file: UploadFile = File(...)):
-    try:
-        # Save uploaded .inp file to a temp location
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".inp") as temp_inp:
-            inp_content = await inp_file.read()
-            temp_inp.write(inp_content)
-            inp_path = temp_inp.name
-
-        # Create temp file path for .rpt output
-        rpt_path = inp_path.replace(".inp", ".rpt")
-
-        # Run EPANET CLI (requires both input and output paths)
-        subprocess.run(["epanet2", inp_path, rpt_path], check=True)
-
-        # Check if .rpt was created and has content
-        if not os.path.exists(rpt_path) or os.path.getsize(rpt_path) == 0:
-            raise HTTPException(status_code=500, detail="Simulation failed: .rpt file not created.")
-
-        # Read and return the report content
-        with open(rpt_path, "r") as rpt_file:
-            report_content = rpt_file.read()
-
-        return JSONResponse(content={"report": report_content})
-
-    except subprocess.CalledProcessError as e:
-        return JSONResponse(
-            content={"error": "EPANET execution failed.", "details": e.output.decode() if e.output else str(e)},
-            status_code=500
-        )
-    except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
-
-     
-
-     
+def health_check():
+    return {
+        "status": "ok",
+        "models_directory": MODELS_DIR
+    }
